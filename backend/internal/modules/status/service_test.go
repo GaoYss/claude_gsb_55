@@ -36,7 +36,7 @@ func newHarness(t *testing.T) *harness {
 	require.NoError(t, err)
 	sqlDB.SetMaxOpenConns(1)
 
-	require.NoError(t, db.AutoMigrate(&lamp.Lamp{}, &fault.Fault{}, &repair.Repair{}))
+	require.NoError(t, db.AutoMigrate(&lamp.Lamp{}, &fault.Fault{}, &repair.Repair{}, &repair.RepairRevision{}, &repair.TeamMonthSettlement{}))
 
 	lampRepository := lamp.NewRepository(db)
 	lampService := lamp.NewService(lampRepository)
@@ -184,4 +184,72 @@ func TestLampStatusListAndTrack(t *testing.T) {
 
 	_, err = h.status.Track(ctx, status.TrackQuery{})
 	require.Error(t, err, "缺少查询条件时应返回错误")
+}
+
+func TestCorrectionRefreshesOverviewAndTimeline(t *testing.T) {
+	ctx := context.Background()
+	h := newHarness(t)
+
+	device := h.createLamp(t, "LD-S-201", "滨江路")
+	entity := h.createFault(t, device.ID, "灯不亮")
+	record, err := h.repairs.Create(ctx, repair.CreateRequest{
+		FaultID: entity.ID, Repairman: "维修工丙", RepairTeam: "市政照明一班",
+	})
+	require.NoError(t, err)
+	cost := 150.0
+	_, err = h.repairs.Finish(ctx, record.ID, repair.FinishRequest{Result: repair.ResultFixed, Cost: &cost})
+	require.NoError(t, err)
+
+	// 更正前: 概览按已修复统计
+	before, err := h.status.Overview(ctx)
+	require.NoError(t, err)
+	require.Equal(t, int64(1), countOf(before.Repair.ByResult, repair.ResultFixed))
+
+	// 结果更正: 已修复 -> 待配件
+	newResult := repair.ResultPendingParts
+	_, err = h.repairs.Correct(ctx, repair.CorrectRequest{
+		Items:    []repair.CorrectItem{{RepairID: record.ID, Result: &newResult}},
+		Reason:   "复核未修复",
+		Operator: "班组长",
+	})
+	require.NoError(t, err)
+
+	// 更正后: 概览数字同步刷新为最新结果
+	after, err := h.status.Overview(ctx)
+	require.NoError(t, err)
+	require.Equal(t, int64(0), countOf(after.Repair.ByResult, repair.ResultFixed))
+	require.Equal(t, int64(1), countOf(after.Repair.ByResult, repair.ResultPendingParts))
+
+	// 路灯级列表展示生效结果
+	rows, _, _, err := h.status.Lamps(ctx, status.LampQuery{Keyword: device.Code})
+	require.NoError(t, err)
+	require.Len(t, rows, 1)
+	require.Equal(t, repair.ResultPendingParts, rows[0].RepairResult)
+
+	// 追踪时间线包含结果更正节点, 且维修完成节点仍展示原始结果
+	track, err := h.status.Track(ctx, status.TrackQuery{FaultNo: entity.FaultNo})
+	require.NoError(t, err)
+	stages := make([]string, 0, len(track.Timeline))
+	for _, event := range track.Timeline {
+		stages = append(stages, event.Stage)
+	}
+	require.Contains(t, stages, "result_corrected")
+	for _, event := range track.Timeline {
+		if event.Stage == "repair_finished" {
+			require.Contains(t, event.Detail, "已修复", "历史节点应保留原始结果")
+		}
+		if event.Stage == "result_corrected" {
+			require.Contains(t, event.Detail, "待配件")
+			require.Equal(t, "班组长", event.Operator)
+		}
+	}
+}
+
+func countOf(items []status.LabelCount, label string) int64 {
+	for _, item := range items {
+		if item.Label == label {
+			return item.Count
+		}
+	}
+	return 0
 }

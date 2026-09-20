@@ -123,6 +123,10 @@ func (s *Service) Overview(ctx context.Context) (*Overview, error) {
 	if err != nil {
 		return nil, err
 	}
+	repairByResult, err := s.repairs.CountFinishedByResult(ctx)
+	if err != nil {
+		return nil, err
+	}
 	todayFinished, err := s.repairs.CountFinishedBetween(ctx, todayStart, tomorrow)
 	if err != nil {
 		return nil, err
@@ -165,6 +169,7 @@ func (s *Service) Overview(ctx context.Context) (*Overview, error) {
 			TodayFinished:     todayFinished,
 			AverageDurationHr: round2(averageDuration),
 			TotalCost:         round2(totalCost),
+			ByResult:          orderedCounts(repairByResult, repair.Results()),
 		},
 		FaultByType:   topCounts(faultByType, 0),
 		FaultByLevel:  orderedCounts(faultByLevel, fault.Levels()),
@@ -268,7 +273,7 @@ func (s *Service) Lamps(ctx context.Context, query LampQuery) ([]LampStatusRow, 
 			row.RepairNo = latest.RepairNo
 			row.Repairman = latest.Repairman
 			row.RepairStatus = latest.Status
-			row.RepairResult = latest.Result
+			row.RepairResult = latest.EffectiveResult()
 			row.RepairedAt = latest.FinishedAt
 		}
 		rows = append(rows, row)
@@ -316,9 +321,13 @@ func (s *Service) Track(ctx context.Context, query TrackQuery) (*TrackResult, er
 			if err != nil {
 				return nil, err
 			}
+			revisions, err := s.repairs.ListRevisionsByFault(ctx, latest.ID)
+			if err != nil {
+				return nil, err
+			}
 			result.Fault = &latest
 			result.Repairs = repairs
-			result.Timeline = buildTimeline(&latest, repairs)
+			result.Timeline = buildTimeline(&latest, repairs, revisions)
 		}
 		return result, nil
 
@@ -337,12 +346,16 @@ func (s *Service) buildFaultTrack(ctx context.Context, entity *fault.Fault) (*Tr
 	if err != nil {
 		return nil, err
 	}
+	revisions, err := s.repairs.ListRevisionsByFault(ctx, entity.ID)
+	if err != nil {
+		return nil, err
+	}
 	return &TrackResult{
 		SearchType: "fault",
 		Lamp:       device,
 		Fault:      entity,
 		Repairs:    repairs,
-		Timeline:   buildTimeline(entity, repairs),
+		Timeline:   buildTimeline(entity, repairs, revisions),
 	}, nil
 }
 
@@ -411,9 +424,10 @@ func (s *Service) latestRepairs(ctx context.Context, lampIDs []uint) (map[uint]r
 	return result, nil
 }
 
-// buildTimeline 依据故障与维修记录构建处置时间线。
-func buildTimeline(entity *fault.Fault, repairs []repair.Repair) []TimelineEvent {
-	events := make([]TimelineEvent, 0, len(repairs)*2+2)
+// buildTimeline 依据故障、维修记录与结果修订记录构建处置时间线。
+// 维修完成节点展示原始结果(历史留痕不改写), 结果更正以独立节点呈现。
+func buildTimeline(entity *fault.Fault, repairs []repair.Repair, revisions []repair.RepairRevision) []TimelineEvent {
+	events := make([]TimelineEvent, 0, len(repairs)*2+len(revisions)+2)
 
 	events = append(events, TimelineEvent{
 		Stage:     "reported",
@@ -447,6 +461,24 @@ func buildTimeline(entity *fault.Fault, repairs []repair.Repair) []TimelineEvent
 				Timestamp: *item.FinishedAt,
 			})
 		}
+	}
+
+	for _, item := range revisions {
+		parts := make([]string, 0, len(item.Changes)+2)
+		parts = append(parts, item.RepairNo)
+		for _, change := range item.Changes {
+			parts = append(parts, change.Label+": "+change.OldValue+" → "+change.NewValue)
+		}
+		if item.Reason != "" {
+			parts = append(parts, "原因: "+item.Reason)
+		}
+		events = append(events, TimelineEvent{
+			Stage:     "result_corrected",
+			Label:     "结果更正",
+			Operator:  item.Operator,
+			Detail:    strings.Join(parts, " "),
+			Timestamp: item.CreatedAt,
+		})
 	}
 
 	if entity.ClosedAt != nil {

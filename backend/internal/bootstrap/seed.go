@@ -115,6 +115,9 @@ func seed(db *gorm.DB) error {
 				record.FinishedAt = &finishedAt
 				record.Status = repair.StatusFinished
 				record.Result = expect.result
+				// 与完工接口一致: 完工时快照生效值, 统计与归集按生效值计算。
+				record.CurrentResult = expect.result
+				record.CurrentCost = expect.cost
 			}
 			repairs = append(repairs, record)
 		}

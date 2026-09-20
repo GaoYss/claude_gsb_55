@@ -1,6 +1,7 @@
 package bootstrap
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -44,6 +45,17 @@ func New(cfg *config.Config) (*App, error) {
 	}
 	if err := database.AutoMigrate(db, models); err != nil {
 		return nil, err
+	}
+
+	// 迁移后的存量数据回填(如维修记录生效值), 各模块自行实现, 幂等。
+	for _, item := range modules {
+		hook, ok := item.(module.AfterMigrator)
+		if !ok {
+			continue
+		}
+		if err := hook.AfterMigrate(context.Background()); err != nil {
+			return nil, fmt.Errorf("模块 %s 迁移后处理失败: %w", item.Name(), err)
+		}
 	}
 
 	if cfg.App.Seed {

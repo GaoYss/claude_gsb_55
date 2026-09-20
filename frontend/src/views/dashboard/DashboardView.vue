@@ -57,19 +57,25 @@
     </div>
 
     <el-row :gutter="16">
-      <el-col :xs="24" :md="8">
+      <el-col :xs="24" :md="6">
         <el-card shadow="never">
           <div class="section-title">路灯运行状态</div>
           <BarList :items="runStatusItems" />
         </el-card>
       </el-col>
-      <el-col :xs="24" :md="8">
+      <el-col :xs="24" :md="6">
         <el-card shadow="never">
           <div class="section-title">故障处理状态</div>
           <BarList :items="faultStatusItems" />
         </el-card>
       </el-col>
-      <el-col :xs="24" :md="8">
+      <el-col :xs="24" :md="6">
+        <el-card shadow="never">
+          <div class="section-title">维修结果分布</div>
+          <BarList :items="repairResultItems" />
+        </el-card>
+      </el-col>
+      <el-col :xs="24" :md="6">
         <el-card shadow="never">
           <div class="section-title">故障类型分布</div>
           <BarList :items="overview.fault_by_type" />
@@ -135,7 +141,7 @@ import StatCard from '@/components/common/StatCard.vue'
 import BarList from '@/components/common/BarList.vue'
 import StatusTag from '@/components/common/StatusTag.vue'
 import { statusApi } from '@/api/status'
-import { FAULT_LEVEL, FAULT_STATUS, RUN_STATUS } from '@/constants/dict'
+import { FAULT_LEVEL, FAULT_STATUS, REPAIR_RESULT, RUN_STATUS } from '@/constants/dict'
 import { formatWaiting } from '@/utils/format'
 
 const router = useRouter()

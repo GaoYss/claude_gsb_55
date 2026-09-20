@@ -29,6 +29,8 @@ request.interceptors.response.use(
     const normalized = new Error(payload?.message || error.message || '网络异常, 请稍后重试')
     normalized.code = payload?.code || 'NETWORK_ERROR'
     normalized.status = error.response?.status
+    // 保留结构化数据(如批量更正的逐条失败明细), 供页面进一步展示。
+    normalized.data = payload?.data
     if (!error.config?.silent) {
       ElMessage.error(normalized.message)
     }

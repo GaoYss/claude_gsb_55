@@ -81,3 +81,12 @@ func Fail(c *gin.Context, err error) {
 	slog.Error("未处理的服务端错误", "error", err, "path", c.FullPath(), "method", c.Request.Method)
 	c.JSON(http.StatusInternalServerError, Envelope{Code: apperr.CodeInternalError, Message: "服务器内部错误, 请稍后重试"})
 }
+
+// FailWithData 返回业务错误并附带结构化数据, 用于批量操作的逐条失败明细等场景。
+func FailWithData(c *gin.Context, err error, data any) {
+	if appErr, ok := apperr.As(err); ok {
+		c.JSON(appErr.Status, Envelope{Code: appErr.Code, Message: appErr.Message, Data: data})
+		return
+	}
+	Fail(c, err)
+}

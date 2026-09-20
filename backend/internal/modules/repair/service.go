@@ -30,6 +30,7 @@ type FaultPort interface {
 	GetByID(ctx context.Context, id uint) (*fault.Fault, error)
 	OnRepairStarted(ctx context.Context, faultID uint, repairID uint) error
 	OnRepairFinished(ctx context.Context, faultID uint, fixed bool) error
+	OnRepairResultCorrected(ctx context.Context, faultID uint, fixed bool) error
 	SyncRepairStats(ctx context.Context, faultID uint, repairCount int, latestRepairID *uint) error
 }
 
@@ -222,6 +223,9 @@ func (s *Service) Finish(ctx context.Context, id uint, req FinishRequest) (*Repa
 	if remark := strings.TrimSpace(req.Remark); remark != "" {
 		entity.Remark = remark
 	}
+	// 完工时快照生效值: 之后统计与归集按生效值计算, 原值留痕不再改写。
+	entity.CurrentResult = result
+	entity.CurrentCost = entity.Cost
 
 	if err := s.repo.Update(ctx, entity); err != nil {
 		return nil, err
@@ -283,14 +287,15 @@ func (s *Service) Metadata(ctx context.Context) (*Meta, error) {
 		return nil, err
 	}
 	return &Meta{
-		Statuses:  Statuses(),
-		Results:   Results(),
-		Repairmen: repairmen,
-		Teams:     teams,
+		Statuses:    Statuses(),
+		Results:     Results(),
+		ResultMetas: ResultMetas(),
+		Repairmen:   repairmen,
+		Teams:       teams,
 	}, nil
 }
 
-// Statistics 汇总维修统计信息。
+// Statistics 汇总维修统计信息, 结果分布与费用按生效值口径统计。
 func (s *Service) Statistics(ctx context.Context) (*Statistics, error) {
 	total, err := s.repo.Count(ctx)
 	if err != nil {
@@ -308,6 +313,10 @@ func (s *Service) Statistics(ctx context.Context) (*Statistics, error) {
 	if err != nil {
 		return nil, err
 	}
+	byResult, err := s.repo.CountFinishedByResult(ctx)
+	if err != nil {
+		return nil, err
+	}
 
 	result := &Statistics{
 		Total:             total,
@@ -315,11 +324,59 @@ func (s *Service) Statistics(ctx context.Context) (*Statistics, error) {
 		FinishedTotal:     byStatus[StatusFinished],
 		TotalCost:         totalCost,
 		AverageDurationHr: averageDuration,
+		ByResult:          make([]ResultBucketView, 0, len(Results())),
 	}
 	if result.FinishedTotal > 0 {
 		result.AverageCost = totalCost / float64(result.FinishedTotal)
 	}
+	for _, resultValue := range Results() {
+		result.ByResult = append(result.ByResult, resultBucketView(resultValue, byResult[resultValue], 0))
+	}
 	return result, nil
+}
+
+// revisionSortSpec 定义修订记录列表允许的排序字段白名单。
+var revisionSortSpec = pagination.SortSpec{
+	Allowed: map[string]string{
+		"revision_no": "revision_no",
+		"batch_no":    "batch_no",
+		"seq":         "seq",
+		"created_at":  "created_at",
+	},
+	Default: "created_at",
+}
+
+// ListRevisions 分页查询修订记录。
+func (s *Service) ListRevisions(ctx context.Context, query RevisionListQuery) ([]RepairRevision, int64, pagination.Query, error) {
+	page := pagination.Parse(query.Params, revisionSortSpec)
+	filter := RevisionFilter{
+		RepairID: query.RepairID,
+		BatchNo:  strings.TrimSpace(query.BatchNo),
+		Month:    strings.TrimSpace(query.Month),
+	}
+	if filter.Month != "" {
+		if _, err := parseMonth(filter.Month); err != nil {
+			return nil, 0, page, err
+		}
+	}
+	items, total, err := s.repo.ListRevisions(ctx, filter, page)
+	if err != nil {
+		return nil, 0, page, err
+	}
+	return items, total, page, nil
+}
+
+// GetRevision 查询单条修订记录详情(含逐字段对照)。
+func (s *Service) GetRevision(ctx context.Context, id uint) (*RepairRevision, error) {
+	return s.repo.GetRevisionByID(ctx, id)
+}
+
+// ListRevisionsByRepair 查询某维修记录的完整修订链。
+func (s *Service) ListRevisionsByRepair(ctx context.Context, repairID uint) ([]RepairRevision, error) {
+	if _, err := s.repo.GetByID(ctx, repairID); err != nil {
+		return nil, err
+	}
+	return s.repo.ListRevisionsByRepair(ctx, repairID)
 }
 
 // buildFilter 将查询参数转换为仓储条件并解析日期区间。

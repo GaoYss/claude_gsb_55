@@ -44,11 +44,25 @@ export const REPAIR_RESULT = {
   unfixable: { label: '无法修复', type: 'danger' },
 }
 
+// 维修结果对应的责任方与维修性质(与后端 result_metas 一致)。
+export const REPAIR_RESULT_META = {
+  fixed: { liable_party: '维修班组', repair_nature: '修复性维修' },
+  pending_parts: { liable_party: '物资供应部门', repair_nature: '待料暂停' },
+  observing: { liable_party: '运行监测班组', repair_nature: '观察跟踪' },
+  unfixable: { liable_party: '设施产权单位', repair_nature: '报废待更新' },
+}
+
+// 取维修结果的责任方 / 维修性质文案。
+export function resultMeta(key, field) {
+  return REPAIR_RESULT_META[key]?.[field] ?? '-'
+}
+
 // 追踪时间线的节点名称。
 export const TIMELINE_STAGE = {
   reported: { label: '故障登记', type: 'primary' },
   repair_started: { label: '维修开工', type: 'warning' },
   repair_finished: { label: '维修完成', type: 'success' },
+  result_corrected: { label: '结果更正', type: 'danger' },
   closed: { label: '故障关闭', type: 'info' },
 }
 

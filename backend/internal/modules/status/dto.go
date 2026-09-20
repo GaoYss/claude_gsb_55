@@ -45,12 +45,14 @@ type FaultSummary struct {
 
 // RepairSummary 维修概览。
 type RepairSummary struct {
-	Total             int64   `json:"total"`
-	OngoingTotal      int64   `json:"ongoing_total"`
-	FinishedTotal     int64   `json:"finished_total"`
-	TodayFinished     int64   `json:"today_finished"`
-	AverageDurationHr float64 `json:"average_duration_hours"`
-	TotalCost         float64 `json:"total_cost"`
+	Total             int64        `json:"total"`
+	OngoingTotal      int64        `json:"ongoing_total"`
+	FinishedTotal     int64        `json:"finished_total"`
+	TodayFinished     int64        `json:"today_finished"`
+	AverageDurationHr float64      `json:"average_duration_hours"`
+	TotalCost         float64      `json:"total_cost"`
+	// ByResult 按生效结果统计已完工记录, 结果更正后随查询实时刷新。
+	ByResult []LabelCount `json:"by_result"`
 }
 
 // Overview 维修状态总览看板。

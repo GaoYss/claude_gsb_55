@@ -283,6 +283,38 @@ func (s *Service) OnRepairFinished(ctx context.Context, faultID uint, fixed bool
 	return s.syncLampStatus(ctx, entity.LampID)
 }
 
+// OnRepairResultCorrected 维修结果更正后重估故障状态。
+// 已修复 <-> 维修中 双向调整; 已关闭的故障由人工闭环, 更正只影响统计口径, 不重开故障。
+func (s *Service) OnRepairResultCorrected(ctx context.Context, faultID uint, fixed bool) error {
+	entity, err := s.repo.GetByID(ctx, faultID)
+	if err != nil {
+		return err
+	}
+	if entity.Status == StatusClosed {
+		return nil
+	}
+
+	target := entity.Status
+	switch {
+	case fixed && entity.Status == StatusProcessing:
+		target = StatusRepaired
+	case !fixed && entity.Status == StatusRepaired:
+		target = StatusProcessing
+	}
+	if target == entity.Status {
+		return nil
+	}
+	if !canTransitTo(entity.Status, target) {
+		return apperr.Conflict("故障 %s 当前状态为 %s, 无法随结果更正流转", entity.FaultNo, StatusLabel(entity.Status))
+	}
+
+	entity.Status = target
+	if err := s.repo.Update(ctx, entity); err != nil {
+		return err
+	}
+	return s.syncLampStatus(ctx, entity.LampID)
+}
+
 // SyncRepairStats 同步维修次数与最新维修记录, 删除维修记录后回退未开工状态。
 func (s *Service) SyncRepairStats(ctx context.Context, faultID uint, repairCount int, latestRepairID *uint) error {
 	entity, err := s.repo.GetByID(ctx, faultID)

@@ -50,21 +50,32 @@
         <el-table-column label="状态" width="90">
           <template #default="{ row }"><StatusTag :dict="REPAIR_STATUS" :value="row.status" /></template>
         </el-table-column>
-        <el-table-column label="结果" width="100">
+        <el-table-column label="结果(生效)" width="130">
           <template #default="{ row }">
-            <StatusTag v-if="row.result" :dict="REPAIR_RESULT" :value="row.result" />
+            <template v-if="row.current_result || row.result">
+              <StatusTag :dict="REPAIR_RESULT" :value="row.current_result || row.result" />
+              <el-tooltip
+                v-if="row.revision_count > 0"
+                :content="`原始结果: ${dictLabel(REPAIR_RESULT, row.result)}, 已更正 ${row.revision_count} 次`"
+                placement="top"
+              >
+                <el-tag size="small" type="danger" effect="plain" class="revision-tag">已更正</el-tag>
+              </el-tooltip>
+            </template>
             <span v-else class="text-muted">-</span>
           </template>
         </el-table-column>
-        <el-table-column label="费用" width="100">
-          <template #default="{ row }">{{ formatMoney(row.cost) }}</template>
+        <el-table-column label="费用(生效)" width="110">
+          <template #default="{ row }">{{ formatMoney(row.status === 'finished' ? row.current_cost : row.cost) }}</template>
         </el-table-column>
         <el-table-column prop="content" label="维修内容" min-width="180" show-overflow-tooltip />
-        <el-table-column label="操作" width="240" fixed="right">
+        <el-table-column label="操作" width="300" fixed="right">
           <template #default="{ row }">
             <el-button link type="primary" @click="openDetail(row)">故障详情</el-button>
             <el-button v-if="row.status === 'ongoing'" link type="success" @click="openFinish(row)">完成维修</el-button>
             <el-button v-if="row.status === 'ongoing'" link type="primary" @click="openEdit(row)">编辑</el-button>
+            <el-button v-if="row.status === 'finished'" link type="warning" @click="openCorrect(row)">更正</el-button>
+            <el-button v-if="row.revision_count > 0" link type="danger" @click="openRevisions(row)">修订记录</el-button>
             <el-button link type="danger" @click="handleDelete(row)">删除</el-button>
           </template>
         </el-table-column>
@@ -80,6 +91,8 @@
 
     <RepairFormDialog v-model="formVisible" :model="editing" @saved="handleSaved" />
     <FinishRepairDialog v-model="finishVisible" :model="finishing" @saved="handleSaved" />
+    <CorrectRepairDialog v-model="correctVisible" :model="correcting" @saved="handleSaved" />
+    <RevisionHistoryDrawer v-model="revisionVisible" :repair="viewing" />
     <FaultDetailDrawer v-model="detailVisible" :fault-id="activeFaultId" />
   </div>
 </template>
@@ -94,10 +107,12 @@ import StatusTag from '@/components/common/StatusTag.vue'
 import DataPagination from '@/components/common/DataPagination.vue'
 import RepairFormDialog from './components/RepairFormDialog.vue'
 import FinishRepairDialog from './components/FinishRepairDialog.vue'
+import CorrectRepairDialog from './components/CorrectRepairDialog.vue'
+import RevisionHistoryDrawer from './components/RevisionHistoryDrawer.vue'
 import FaultDetailDrawer from '@/views/fault/components/FaultDetailDrawer.vue'
 import { repairApi } from '@/api/repair'
 import { useDictStore } from '@/stores/dict'
-import { REPAIR_RESULT, REPAIR_STATUS } from '@/constants/dict'
+import { REPAIR_RESULT, REPAIR_STATUS, dictLabel } from '@/constants/dict'
 import { formatDateTime, formatDuration, formatMoney } from '@/utils/format'
 import { useListPage } from '@/composables/useListPage'
 
@@ -117,9 +132,13 @@ const { loading, rows, total, query, load, search, reset, changePage, changePage
 const dateRange = ref([])
 const formVisible = ref(false)
 const finishVisible = ref(false)
+const correctVisible = ref(false)
+const revisionVisible = ref(false)
 const detailVisible = ref(false)
 const editing = ref(null)
 const finishing = ref(null)
+const correcting = ref(null)
+const viewing = ref(null)
 const activeFaultId = ref(null)
 
 function applyDateRange() {
@@ -155,6 +174,16 @@ function openFinish(row) {
 function openDetail(row) {
   activeFaultId.value = row.fault_id
   detailVisible.value = true
+}
+
+function openCorrect(row) {
+  correcting.value = { ...row }
+  correctVisible.value = true
+}
+
+function openRevisions(row) {
+  viewing.value = { ...row }
+  revisionVisible.value = true
 }
 
 async function handleDelete(row) {
@@ -196,3 +225,10 @@ onMounted(async () => {
   await applyRouteQuery()
 })
 </script>
+
+<style scoped>
+.revision-tag {
+  margin-left: 6px;
+  cursor: default;
+}
+</style>
