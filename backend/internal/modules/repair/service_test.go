@@ -38,7 +38,7 @@ func newHarness(t *testing.T) *harness {
 	require.NoError(t, err)
 	sqlDB.SetMaxOpenConns(1)
 
-	require.NoError(t, db.AutoMigrate(&lamp.Lamp{}, &fault.Fault{}, &repair.Repair{}))
+	require.NoError(t, db.AutoMigrate(&lamp.Lamp{}, &fault.Fault{}, &repair.Repair{}, &repair.RepairCorrection{}, &repair.RepairMonthSettlement{}, &repair.RepairSettlementRow{}))
 
 	lampRepository := lamp.NewRepository(db)
 	lampService := lamp.NewService(lampRepository)

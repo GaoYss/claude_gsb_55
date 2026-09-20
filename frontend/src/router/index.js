@@ -32,6 +32,12 @@ const routes = [
         meta: { title: '维修记录录入', icon: 'Tools' },
       },
       {
+        path: 'repairs/aggregation',
+        name: 'repairs-aggregation',
+        component: () => import('@/views/repair/RepairAggregationView.vue'),
+        meta: { title: '班组归集', icon: 'DataAnalysis' },
+      },
+      {
         path: 'status',
         name: 'status',
         component: () => import('@/views/status/StatusLampView.vue'),

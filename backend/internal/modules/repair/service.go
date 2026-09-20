@@ -206,10 +206,17 @@ func (s *Service) Finish(ctx context.Context, id uint, req FinishRequest) (*Repa
 	if finishedAt.Before(entity.StartedAt) {
 		return nil, apperr.BadRequest("完工时间不能早于开工时间")
 	}
+	// 完工月份已结算时, 该月归集金额已封存, 不能再新增完工记录。
+	if settled, err := s.monthSettled(ctx, finishedAt.Format("2006-01")); err != nil {
+		return nil, err
+	} else if settled {
+		return nil, apperr.Conflict("完工月份 %s 已结算, 不能在该月新增完工记录", finishedAt.Format("2006-01"))
+	}
 
 	entity.FinishedAt = &finishedAt
 	entity.Status = StatusFinished
 	entity.Result = result
+	entity.ApplyEffectiveResult(result)
 	if content := strings.TrimSpace(req.Content); content != "" {
 		entity.Content = content
 	}
@@ -248,6 +255,21 @@ func (s *Service) Delete(ctx context.Context, id uint) error {
 	if target.Status == fault.StatusClosed {
 		return apperr.Conflict("故障 %s 已关闭, 不允许删除其维修记录", target.FaultNo)
 	}
+	corrections, err := s.repo.CountCorrectionsByRepair(ctx, id)
+	if err != nil {
+		return err
+	}
+	if corrections > 0 {
+		return apperr.Conflict("维修记录 %s 存在 %d 条更正记录, 为保证修订路径可追溯, 不允许删除", entity.RepairNo, corrections)
+	}
+	// 已结算月份的完工记录是结算快照的依据, 不允许删除。
+	if entity.FinishedAt != nil {
+		if settled, err := s.monthSettled(ctx, entity.FinishedAt.Format("2006-01")); err != nil {
+			return err
+		} else if settled {
+			return apperr.Conflict("维修记录 %s 的完工月份已结算, 不允许删除", entity.RepairNo)
+		}
+	}
 
 	if err := s.repo.Delete(ctx, id); err != nil {
 		return err
@@ -283,10 +305,12 @@ func (s *Service) Metadata(ctx context.Context) (*Meta, error) {
 		return nil, err
 	}
 	return &Meta{
-		Statuses:  Statuses(),
-		Results:   Results(),
-		Repairmen: repairmen,
-		Teams:     teams,
+		Statuses:    Statuses(),
+		Results:     Results(),
+		Liabilities: Liabilities(),
+		Natures:     Natures(),
+		Repairmen:   repairmen,
+		Teams:       teams,
 	}, nil
 }
 
@@ -308,6 +332,18 @@ func (s *Service) Statistics(ctx context.Context) (*Statistics, error) {
 	if err != nil {
 		return nil, err
 	}
+	byResult, err := s.repo.CountFinishedByColumn(ctx, "current_result")
+	if err != nil {
+		return nil, err
+	}
+	byLiability, err := s.repo.CountFinishedByColumn(ctx, "current_liability")
+	if err != nil {
+		return nil, err
+	}
+	byNature, err := s.repo.CountFinishedByColumn(ctx, "current_nature")
+	if err != nil {
+		return nil, err
+	}
 
 	result := &Statistics{
 		Total:             total,
@@ -315,6 +351,9 @@ func (s *Service) Statistics(ctx context.Context) (*Statistics, error) {
 		FinishedTotal:     byStatus[StatusFinished],
 		TotalCost:         totalCost,
 		AverageDurationHr: averageDuration,
+		ByResult:          byResult,
+		ByLiability:       byLiability,
+		ByNature:          byNature,
 	}
 	if result.FinishedTotal > 0 {
 		result.AverageCost = totalCost / float64(result.FinishedTotal)

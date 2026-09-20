@@ -63,7 +63,7 @@
             <template #default="{ row }"><StatusTag :dict="REPAIR_STATUS" :value="row.status" /></template>
           </el-table-column>
           <el-table-column label="结果" width="90">
-            <template #default="{ row }">{{ dictLabel(REPAIR_RESULT, row.result) }}</template>
+            <template #default="{ row }"><RepairResultTag :row="row" /></template>
           </el-table-column>
           <el-table-column label="开工时间" width="140">
             <template #default="{ row }">{{ formatDateTime(row.started_at) }}</template>
@@ -82,8 +82,9 @@
 <script setup>
 import { ref } from 'vue'
 import StatusTag from '@/components/common/StatusTag.vue'
+import RepairResultTag from '@/components/common/RepairResultTag.vue'
 import { statusApi } from '@/api/status'
-import { FAULT_LEVEL, FAULT_SOURCE, FAULT_STATUS, REPAIR_RESULT, REPAIR_STATUS, RUN_STATUS, TIMELINE_STAGE, dictLabel, dictType } from '@/constants/dict'
+import { FAULT_LEVEL, FAULT_SOURCE, FAULT_STATUS, REPAIR_STATUS, RUN_STATUS, TIMELINE_STAGE, dictLabel, dictType } from '@/constants/dict'
 import { formatDateTime } from '@/utils/format'
 
 const props = defineProps({

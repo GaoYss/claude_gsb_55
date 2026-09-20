@@ -2,6 +2,8 @@
   <div class="page">
     <PageHeader title="维修记录录入" description="记录维修过程、耗材与费用, 完工后自动联动故障与路灯状态">
       <el-button :icon="Refresh" @click="load">刷新</el-button>
+      <el-button :icon="Document" @click="openCorrections()">更正记录</el-button>
+      <el-button :icon="DataAnalysis" @click="$router.push('/repairs/aggregation')">班组归集</el-button>
       <el-button type="primary" :icon="Plus" @click="openCreate">录入维修记录</el-button>
     </PageHeader>
 
@@ -50,21 +52,20 @@
         <el-table-column label="状态" width="90">
           <template #default="{ row }"><StatusTag :dict="REPAIR_STATUS" :value="row.status" /></template>
         </el-table-column>
-        <el-table-column label="结果" width="100">
-          <template #default="{ row }">
-            <StatusTag v-if="row.result" :dict="REPAIR_RESULT" :value="row.result" />
-            <span v-else class="text-muted">-</span>
-          </template>
+        <el-table-column label="结果" width="150">
+          <template #default="{ row }"><RepairResultTag :row="row" /></template>
         </el-table-column>
         <el-table-column label="费用" width="100">
           <template #default="{ row }">{{ formatMoney(row.cost) }}</template>
         </el-table-column>
         <el-table-column prop="content" label="维修内容" min-width="180" show-overflow-tooltip />
-        <el-table-column label="操作" width="240" fixed="right">
+        <el-table-column label="操作" width="300" fixed="right">
           <template #default="{ row }">
             <el-button link type="primary" @click="openDetail(row)">故障详情</el-button>
             <el-button v-if="row.status === 'ongoing'" link type="success" @click="openFinish(row)">完成维修</el-button>
             <el-button v-if="row.status === 'ongoing'" link type="primary" @click="openEdit(row)">编辑</el-button>
+            <el-button v-if="row.status === 'finished'" link type="warning" @click="openCorrect(row)">结果更正</el-button>
+            <el-button v-if="row.correction_count > 0" link type="info" @click="openCorrections(row)">修订路径</el-button>
             <el-button link type="danger" @click="handleDelete(row)">删除</el-button>
           </template>
         </el-table-column>
@@ -80,6 +81,8 @@
 
     <RepairFormDialog v-model="formVisible" :model="editing" @saved="handleSaved" />
     <FinishRepairDialog v-model="finishVisible" :model="finishing" @saved="handleSaved" />
+    <CorrectResultDialog v-model="correctVisible" :model="correcting" @saved="handleSaved" />
+    <CorrectionsDrawer v-model="correctionsVisible" :repair="correctionRepair" />
     <FaultDetailDrawer v-model="detailVisible" :fault-id="activeFaultId" />
   </div>
 </template>
@@ -88,12 +91,15 @@
 import { onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Plus, Refresh, RefreshLeft, Search } from '@element-plus/icons-vue'
+import { DataAnalysis, Document, Plus, Refresh, RefreshLeft, Search } from '@element-plus/icons-vue'
 import PageHeader from '@/components/common/PageHeader.vue'
 import StatusTag from '@/components/common/StatusTag.vue'
+import RepairResultTag from '@/components/common/RepairResultTag.vue'
 import DataPagination from '@/components/common/DataPagination.vue'
 import RepairFormDialog from './components/RepairFormDialog.vue'
 import FinishRepairDialog from './components/FinishRepairDialog.vue'
+import CorrectResultDialog from './components/CorrectResultDialog.vue'
+import CorrectionsDrawer from './components/CorrectionsDrawer.vue'
 import FaultDetailDrawer from '@/views/fault/components/FaultDetailDrawer.vue'
 import { repairApi } from '@/api/repair'
 import { useDictStore } from '@/stores/dict'
@@ -118,8 +124,12 @@ const dateRange = ref([])
 const formVisible = ref(false)
 const finishVisible = ref(false)
 const detailVisible = ref(false)
+const correctVisible = ref(false)
+const correctionsVisible = ref(false)
 const editing = ref(null)
 const finishing = ref(null)
+const correcting = ref(null)
+const correctionRepair = ref(null)
 const activeFaultId = ref(null)
 
 function applyDateRange() {
@@ -155,6 +165,17 @@ function openFinish(row) {
 function openDetail(row) {
   activeFaultId.value = row.fault_id
   detailVisible.value = true
+}
+
+function openCorrect(row) {
+  correcting.value = { ...row }
+  correctVisible.value = true
+}
+
+// 不传 row 时展示全局更正记录, 传入时展示该记录的修订路径。
+function openCorrections(row = null) {
+  correctionRepair.value = row
+  correctionsVisible.value = true
 }
 
 async function handleDelete(row) {

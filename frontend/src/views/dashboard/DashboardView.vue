@@ -78,6 +78,30 @@
     </el-row>
 
     <el-row :gutter="16">
+      <el-col :xs="24" :md="8">
+        <el-card shadow="never">
+          <div class="section-title">
+            <span>维修结果分布</span>
+            <el-tag size="small" type="info" effect="plain">按生效结果</el-tag>
+          </div>
+          <BarList :items="repairResultItems" />
+        </el-card>
+      </el-col>
+      <el-col :xs="24" :md="8">
+        <el-card shadow="never">
+          <div class="section-title">责任方分布</div>
+          <BarList :items="liabilityItems" />
+        </el-card>
+      </el-col>
+      <el-col :xs="24" :md="8">
+        <el-card shadow="never">
+          <div class="section-title">维修性质分布</div>
+          <BarList :items="natureItems" />
+        </el-card>
+      </el-col>
+    </el-row>
+
+    <el-row :gutter="16">
       <el-col :xs="24" :md="12">
         <el-card shadow="never">
           <div class="section-title">
@@ -135,7 +159,7 @@ import StatCard from '@/components/common/StatCard.vue'
 import BarList from '@/components/common/BarList.vue'
 import StatusTag from '@/components/common/StatusTag.vue'
 import { statusApi } from '@/api/status'
-import { FAULT_LEVEL, FAULT_STATUS, RUN_STATUS } from '@/constants/dict'
+import { FAULT_LEVEL, FAULT_STATUS, REPAIR_LIABILITY, REPAIR_NATURE, REPAIR_RESULT, RUN_STATUS } from '@/constants/dict'
 import { formatWaiting } from '@/utils/format'
 
 const router = useRouter()
@@ -144,7 +168,7 @@ const loading = ref(false)
 const emptyOverview = () => ({
   lamp: { total: 0, road_count: 0, by_run_status: {} },
   fault: { total: 0, open_total: 0, by_status: {}, today_reported: 0, overdue_total: 0 },
-  repair: { total: 0, ongoing_total: 0, finished_total: 0, today_finished: 0, average_duration_hours: 0, total_cost: 0 },
+  repair: { total: 0, ongoing_total: 0, finished_total: 0, today_finished: 0, average_duration_hours: 0, total_cost: 0, by_result: {}, by_liability: {}, by_nature: {} },
   fault_by_type: [],
   fault_by_level: [],
   top_roads: [],
@@ -166,6 +190,28 @@ const faultStatusItems = computed(() =>
   Object.entries(FAULT_STATUS).map(([key, item]) => ({
     label: item.label,
     count: overview.value.fault.by_status?.[key] ?? 0,
+  })),
+)
+
+// 维修结果相关分布均按当前生效结果统计, 结果更正后随概览同步刷新。
+const repairResultItems = computed(() =>
+  Object.entries(REPAIR_RESULT).map(([key, item]) => ({
+    label: item.label,
+    count: overview.value.repair.by_result?.[key] ?? 0,
+  })),
+)
+
+const liabilityItems = computed(() =>
+  Object.entries(REPAIR_LIABILITY).map(([key, item]) => ({
+    label: item.label,
+    count: overview.value.repair.by_liability?.[key] ?? 0,
+  })),
+)
+
+const natureItems = computed(() =>
+  Object.entries(REPAIR_NATURE).map(([key, item]) => ({
+    label: item.label,
+    count: overview.value.repair.by_nature?.[key] ?? 0,
   })),
 )
 

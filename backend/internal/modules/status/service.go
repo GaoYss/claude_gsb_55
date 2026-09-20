@@ -135,6 +135,18 @@ func (s *Service) Overview(ctx context.Context) (*Overview, error) {
 	if err != nil {
 		return nil, err
 	}
+	repairByResult, err := s.repairs.CountFinishedByColumn(ctx, "current_result")
+	if err != nil {
+		return nil, err
+	}
+	repairByLiability, err := s.repairs.CountFinishedByColumn(ctx, "current_liability")
+	if err != nil {
+		return nil, err
+	}
+	repairByNature, err := s.repairs.CountFinishedByColumn(ctx, "current_nature")
+	if err != nil {
+		return nil, err
+	}
 
 	recentFaults, err := s.faults.ListRecent(ctx, 8)
 	if err != nil {
@@ -165,6 +177,9 @@ func (s *Service) Overview(ctx context.Context) (*Overview, error) {
 			TodayFinished:     todayFinished,
 			AverageDurationHr: round2(averageDuration),
 			TotalCost:         round2(totalCost),
+			ByResult:          repairByResult,
+			ByLiability:       repairByLiability,
+			ByNature:          repairByNature,
 		},
 		FaultByType:   topCounts(faultByType, 0),
 		FaultByLevel:  orderedCounts(faultByLevel, fault.Levels()),
@@ -268,7 +283,7 @@ func (s *Service) Lamps(ctx context.Context, query LampQuery) ([]LampStatusRow, 
 			row.RepairNo = latest.RepairNo
 			row.Repairman = latest.Repairman
 			row.RepairStatus = latest.Status
-			row.RepairResult = latest.Result
+			row.RepairResult = latest.EffectiveResult()
 			row.RepairedAt = latest.FinishedAt
 		}
 		rows = append(rows, row)
@@ -433,8 +448,11 @@ func buildTimeline(entity *fault.Fault, repairs []repair.Repair) []TimelineEvent
 		})
 		if item.FinishedAt != nil {
 			detail := item.RepairNo
-			if item.Result != "" {
-				detail = strings.TrimSpace(detail + " 结果: " + repair.ResultLabel(item.Result))
+			if effective := item.EffectiveResult(); effective != "" {
+				detail = strings.TrimSpace(detail + " 结果: " + repair.ResultLabel(effective))
+				if item.CorrectionCount > 0 && item.Result != "" && item.Result != effective {
+					detail += "(原" + repair.ResultLabel(item.Result) + ", 已更正)"
+				}
 			}
 			if item.Materials != "" {
 				detail = strings.TrimSpace(detail + " 耗材: " + item.Materials)

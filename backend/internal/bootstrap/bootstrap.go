@@ -1,6 +1,7 @@
 package bootstrap
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -49,6 +50,15 @@ func New(cfg *config.Config) (*App, error) {
 	if cfg.App.Seed {
 		if err := seed(db); err != nil {
 			return nil, fmt.Errorf("初始化演示数据失败: %w", err)
+		}
+	}
+
+	// 数据回填钩子: 模块在迁移(与演示数据)之后修正历史数据, 例如维修记录的生效结果。
+	for _, item := range modules {
+		if hook, ok := item.(interface{ BackfillEffectiveResults(context.Context) error }); ok {
+			if err := hook.BackfillEffectiveResults(context.Background()); err != nil {
+				return nil, fmt.Errorf("回填历史数据失败: %w", err)
+			}
 		}
 	}
 

@@ -44,6 +44,29 @@ export const REPAIR_RESULT = {
   unfixable: { label: '无法修复', type: 'danger' },
 }
 
+// 责任方(由维修结果推导, 与后端映射一致)。
+export const REPAIR_LIABILITY = {
+  maintenance_team: { label: '维修班组', type: 'primary' },
+  material_supply: { label: '物资供应', type: 'warning' },
+  asset_owner: { label: '资产权属方', type: 'danger' },
+}
+
+// 维修性质(由维修结果推导, 与后端映射一致)。
+export const REPAIR_NATURE = {
+  fault_repair: { label: '故障维修', type: 'success' },
+  pending_material: { label: '待料缓修', type: 'warning' },
+  observe_track: { label: '观察跟踪', type: 'primary' },
+  retrofit: { label: '更新改造', type: 'danger' },
+}
+
+// 维修结果 -> 责任方 / 维修性质 的映射, 用于更正前预览。
+export const RESULT_ATTRIBUTION = {
+  fixed: { liability: 'maintenance_team', nature: 'fault_repair' },
+  pending_parts: { liability: 'material_supply', nature: 'pending_material' },
+  observing: { liability: 'maintenance_team', nature: 'observe_track' },
+  unfixable: { liability: 'asset_owner', nature: 'retrofit' },
+}
+
 // 追踪时间线的节点名称。
 export const TIMELINE_STAGE = {
   reported: { label: '故障登记', type: 'primary' },

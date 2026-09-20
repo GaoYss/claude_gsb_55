@@ -43,20 +43,23 @@ type FaultSummary struct {
 	OverdueTotal  int64            `json:"overdue_total"`
 }
 
-// RepairSummary 维修概览。
+// RepairSummary 维修概览, 结果/责任方/维修性质分布按当前生效结果统计。
 type RepairSummary struct {
-	Total             int64   `json:"total"`
-	OngoingTotal      int64   `json:"ongoing_total"`
-	FinishedTotal     int64   `json:"finished_total"`
-	TodayFinished     int64   `json:"today_finished"`
-	AverageDurationHr float64 `json:"average_duration_hours"`
-	TotalCost         float64 `json:"total_cost"`
+	Total             int64            `json:"total"`
+	OngoingTotal      int64            `json:"ongoing_total"`
+	FinishedTotal     int64            `json:"finished_total"`
+	TodayFinished     int64            `json:"today_finished"`
+	AverageDurationHr float64          `json:"average_duration_hours"`
+	TotalCost         float64          `json:"total_cost"`
+	ByResult          map[string]int64 `json:"by_result"`
+	ByLiability       map[string]int64 `json:"by_liability"`
+	ByNature          map[string]int64 `json:"by_nature"`
 }
 
 // Overview 维修状态总览看板。
 type Overview struct {
-	Lamp          LampSummary  `json:"lamp"`
-	Fault         FaultSummary `json:"fault"`
+	Lamp          LampSummary   `json:"lamp"`
+	Fault         FaultSummary  `json:"fault"`
 	Repair        RepairSummary `json:"repair"`
 	FaultByType   []LabelCount  `json:"fault_by_type"`
 	FaultByLevel  []LabelCount  `json:"fault_by_level"`
@@ -101,10 +104,10 @@ type TimelineEvent struct {
 
 // TrackResult 是单条故障(或单盏路灯)的完整处理链路。
 type TrackResult struct {
-	SearchType    string            `json:"search_type"`
-	Lamp          *lamp.Lamp        `json:"lamp,omitempty"`
-	Fault         *fault.Fault      `json:"fault,omitempty"`
-	Repairs       []repair.Repair   `json:"repairs"`
-	Timeline      []TimelineEvent   `json:"timeline"`
-	RelatedFaults []FaultBrief      `json:"related_faults,omitempty"`
+	SearchType    string          `json:"search_type"`
+	Lamp          *lamp.Lamp      `json:"lamp,omitempty"`
+	Fault         *fault.Fault    `json:"fault,omitempty"`
+	Repairs       []repair.Repair `json:"repairs"`
+	Timeline      []TimelineEvent `json:"timeline"`
+	RelatedFaults []FaultBrief    `json:"related_faults,omitempty"`
 }

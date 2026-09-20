@@ -282,7 +282,7 @@ func (r *Repository) AverageDurationHours(ctx context.Context) (float64, error) 
 func (r *Repository) DistinctValues(ctx context.Context, column string) ([]string, error) {
 	values := make([]string, 0)
 	err := r.session(ctx).Model(&Repair{}).
-		Where(column + " <> ''").
+		Where(column+" <> ''").
 		Distinct().
 		Order(column).
 		Pluck(column, &values).Error
@@ -317,7 +317,8 @@ func applyFilter(statement *gorm.DB, filter Filter) *gorm.DB {
 		statement = statement.Where("status = ?", filter.Status)
 	}
 	if filter.Result != "" {
-		statement = statement.Where("result = ?", filter.Result)
+		// 结果筛选按当前生效结果统计, 原始结果保留在 result 列用于追溯。
+		statement = statement.Where("current_result = ?", filter.Result)
 	}
 	if filter.StartedFrom != nil {
 		statement = statement.Where("started_at >= ?", *filter.StartedFrom)

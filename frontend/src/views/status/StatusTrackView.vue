@@ -86,7 +86,7 @@
             <template #default="{ row }"><StatusTag :dict="REPAIR_STATUS" :value="row.status" /></template>
           </el-table-column>
           <el-table-column label="结果" width="100">
-            <template #default="{ row }">{{ dictLabel(REPAIR_RESULT, row.result) }}</template>
+            <template #default="{ row }"><RepairResultTag :row="row" /></template>
           </el-table-column>
           <el-table-column label="开工" width="150">
             <template #default="{ row }">{{ formatDateTime(row.started_at) }}</template>
@@ -136,12 +136,12 @@ import { useRoute, useRouter } from 'vue-router'
 import { Search } from '@element-plus/icons-vue'
 import PageHeader from '@/components/common/PageHeader.vue'
 import StatusTag from '@/components/common/StatusTag.vue'
+import RepairResultTag from '@/components/common/RepairResultTag.vue'
 import { statusApi } from '@/api/status'
 import {
   FAULT_LEVEL,
   FAULT_SOURCE,
   FAULT_STATUS,
-  REPAIR_RESULT,
   REPAIR_STATUS,
   RUN_STATUS,
   TIMELINE_STAGE,
